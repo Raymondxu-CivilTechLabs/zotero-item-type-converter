@@ -5,30 +5,39 @@ Zotero.ItemTypeConverter = {
     try {
       var ZoteroPane = Zotero.getActiveZoteroPane();
       if (!ZoteroPane) {
-        this.showAlert("错误", "无法获取 Zotero 面板");
+        this.showAlert("Error", "Unable to get Zotero pane");
         return;
       }
 
       var items = ZoteroPane.getSelectedItems();
       if (!items || items.length === 0) {
-        this.showAlert("提示", "请先选择要转换的条目");
+        this.showAlert("Notice", "Please select items to convert");
         return;
       }
 
       var targetTypeId = Zotero.ItemTypes.getID(targetType);
       if (!targetTypeId) {
-        this.showAlert("错误", "无效的条目类型: " + targetType);
+        this.showAlert("Error", "Invalid item type: " + targetType);
         return;
       }
 
       var convertedCount = 0;
+      var skippedCount = 0;
+      var alreadyTargetType = 0;
+      var totalSelected = items.length;
 
       for (let item of items) {
         // 跳过非常规条目（如附件、笔记等）
-        if (!item.isRegularItem()) continue;
+        if (!item.isRegularItem()) {
+          skippedCount++;
+          continue;
+        }
 
         // 如果已经是目标类型，跳过
-        if (item.itemTypeID === targetTypeId) continue;
+        if (item.itemTypeID === targetTypeId) {
+          alreadyTargetType++;
+          continue;
+        }
 
         /* =========================
            1. 安全备份所有字段
@@ -124,16 +133,33 @@ Zotero.ItemTypeConverter = {
         convertedCount++;
       }
 
-      // 显示完成提示
+      // 显示详细的完成提示
+      var targetTypeName = Zotero.ItemTypes.getLocalizedString(targetTypeId);
+      var messages = [];
+      
+      messages.push("Selected: " + totalSelected + " item(s)");
+      
       if (convertedCount > 0) {
-        this.showAlert("完成", "成功转换 " + convertedCount + " 个条目");
+        messages.push("✓ Converted: " + convertedCount + " item(s)");
+      }
+      
+      if (alreadyTargetType > 0) {
+        messages.push("○ Already " + targetTypeName + ": " + alreadyTargetType + " (skipped)");
+      }
+      
+      if (skippedCount > 0) {
+        messages.push("⊗ Non-regular items: " + skippedCount + " (skipped)");
+      }
+      
+      if (convertedCount > 0) {
+        this.showAlert("Conversion Complete", messages.join("\n"));
       } else {
-        this.showAlert("提示", "没有条目需要转换");
+        this.showAlert("Notice", "No items converted\n\n" + messages.join("\n"));
       }
 
     } catch (e) {
       Zotero.debug("ItemTypeConverter error: " + e);
-      this.showAlert("错误", "转换失败: " + e.message);
+      this.showAlert("Error", "Conversion failed: " + e.message);
     }
   },
 

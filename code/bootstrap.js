@@ -103,58 +103,91 @@ function addMenuToWindow(win) {
     }
     
     try {
-        // 创建子菜单
-        var subMenu = doc.createXULElement('menu');
+        // 创建子菜单 - 使用更兼容的方式
+        var subMenu;
+        if (doc.createXULElement) {
+            subMenu = doc.createXULElement('menu');
+        } else {
+            subMenu = doc.createElement('menu');
+        }
         subMenu.setAttribute('id', menuId);
-        subMenu.setAttribute('label', 'Type Converter');
+        subMenu.setAttribute('label', 'Change Item Type');
+        subMenu.setAttribute('class', 'menu-iconic');
         
-        var subMenuPopup = doc.createXULElement('menupopup');
+        var subMenuPopup;
+        if (doc.createXULElement) {
+            subMenuPopup = doc.createXULElement('menupopup');
+        } else {
+            subMenuPopup = doc.createElement('menupopup');
+        }
         subMenu.appendChild(subMenuPopup);
+        
+        log("Created submenu and popup");
         
         // 定义类型列表
         var types = [
-            { label: '期刊文章 (Journal Article)', value: 'journalArticle' },
-            { label: '学位论文 (Thesis)', value: 'thesis' },
-            { label: '图书 (Book)', value: 'book' },
-            { label: '会议论文 (Conf. Paper)', value: 'conferencePaper' },
-            { label: '会议期刊 (Proceedings)', value: 'proceedings' },
-            { label: '报告 (Report)', value: 'report' },
-            { label: '专利 (Patent)', value: 'patent' }
+            { label: 'Journal Article', value: 'journalArticle' },
+            { label: 'Thesis', value: 'thesis' },
+            { label: 'Book', value: 'book' },
+            { label: 'Conference Paper', value: 'conferencePaper' },
+            { label: 'Proceedings', value: 'proceedings' },
+            { label: 'Report', value: 'report' },
+            { label: 'Patent', value: 'patent' }
         ];
         
         // 创建菜单项
+        var itemCount = 0;
         types.forEach(function(type) {
-            var menuItem = doc.createXULElement('menuitem');
+            var menuItem;
+            if (doc.createXULElement) {
+                menuItem = doc.createXULElement('menuitem');
+            } else {
+                menuItem = doc.createElement('menuitem');
+            }
             menuItem.setAttribute('label', type.label);
             menuItem.setAttribute('data-item-type', type.value);
+            menuItem.setAttribute('class', 'menuitem-iconic');
             
             menuItem.addEventListener('command', function() {
                 try {
+                    log("Menu item clicked: " + type.value);
                     if (Zotero.ItemTypeConverter && typeof Zotero.ItemTypeConverter.convert === 'function') {
                         Zotero.ItemTypeConverter.convert(type.value);
                     } else {
                         log("ERROR: ItemTypeConverter.convert not found!");
-                        win.alert("转换功能未正确加载，请重启 Zotero");
+                        win.alert("Converter function not loaded. Please restart Zotero.");
                     }
                 } catch (e) {
                     log("Error in menu command: " + e);
-                    win.alert("转换失败: " + e.message);
+                    win.alert("Conversion failed: " + e.message);
                 }
             });
             
             subMenuPopup.appendChild(menuItem);
+            itemCount++;
         });
         
-        // 添加分隔符（可选，使菜单更美观）
-        var separator = doc.createXULElement('menuseparator');
-        itemMenu.insertBefore(separator, itemMenu.firstChild);
+        log("Created " + itemCount + " menu items");
         
-        // 添加到右键菜单的最前面
-        itemMenu.insertBefore(subMenu, separator);
+        // 添加到右键菜单
+        itemMenu.appendChild(subMenu);
+        
+        // 验证菜单已添加
+        var verifyMenu = doc.getElementById(menuId);
+        if (verifyMenu) {
+            var verifyPopup = verifyMenu.querySelector('menupopup');
+            if (verifyPopup) {
+                var verifyItems = verifyPopup.querySelectorAll('menuitem');
+                log("✓ Menu verified: " + verifyItems.length + " items in popup");
+            } else {
+                log("✗ WARNING: Popup not found after adding!");
+            }
+        }
         
         log("Menu added successfully to window");
     } catch (e) {
         log("Error adding menu to window: " + e);
+        log("Stack: " + e.stack);
     }
 }
 
