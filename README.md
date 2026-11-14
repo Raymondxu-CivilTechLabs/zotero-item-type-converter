@@ -1,6 +1,6 @@
 # Zotero Item Type Converter
 
-一个用于 Zotero 7 的条目类型转换插件。
+一个用于 Zotero 7 / 8 / 9 / 10 的条目类型转换插件。
 
 ## 功能特点
 
@@ -41,7 +41,7 @@
 ## 安装方法
 
 1. 下载 `zotero-item-type-converter.xpi` 文件
-2. 打开 Zotero 7
+2. 打开 Zotero（7 及以上版本）
 3. 进入 `工具` → `插件`
 4. 点击右上角齿轮图标 → `Install Add-on From File...`
 5. 选择下载的 XPI 文件
@@ -57,8 +57,8 @@
 
 ## 兼容性
 
-- Zotero 7.0 及以上版本
-- 使用 Legacy Bootstrap API
+- Zotero 7.0 – 10.0.x
+- Zotero 8 及以上使用官方菜单 API `Zotero.MenuManager`，Zotero 7.x 自动回退到 legacy DOM 注入
 
 ## 注意事项
 
@@ -69,11 +69,17 @@
 
 ## 开发信息
 
-- 版本: 1.0.0
+- 版本: 2.0.0
 - 作者: Raymond Xu
 - 许可: MIT
 
 ## 更新日志
+
+### v2.0.0 (2026-11-15)
+- 适配 Zotero 10.0.8
+- 菜单改用官方 `Zotero.MenuManager` API，旧版 Zotero 7 自动回退
+- 修复已废弃的 `nsIPromptService` 调用导致转换后无提示
+- 补充中英文界面翻译
 
 ### v1.0.0 (2025-01-27)
 - 初始版本

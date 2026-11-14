@@ -1,15 +1,24 @@
-// 将 ItemTypeConverter 挂载到 Zotero 对象上
+// Zotero Item Type Converter - 核心转换逻辑
+// 由 bootstrap.js 通过 loadSubScript 加载，挂载到 Zotero.ItemTypeConverter
+
 Zotero.ItemTypeConverter = {
 
-  async convert(targetType) {
+  /**
+   * 转换选中条目的类型
+   * @param {string} targetType - 目标类型（如 'journalArticle'）
+   * @param {Zotero.Item[]} [items] - 待转换条目，省略时使用当前选中条目
+   */
+  async convert(targetType, items) {
     try {
-      var ZoteroPane = Zotero.getActiveZoteroPane();
-      if (!ZoteroPane) {
-        this.showAlert("Error", "Unable to get Zotero pane");
-        return;
+      if (!items || !items.length) {
+        var ZoteroPane = this.getZoteroPane();
+        if (!ZoteroPane || typeof ZoteroPane.getSelectedItems !== 'function') {
+          this.showAlert("Error", "Unable to get Zotero pane");
+          return;
+        }
+        items = ZoteroPane.getSelectedItems();
       }
 
-      var items = ZoteroPane.getSelectedItems();
       if (!items || items.length === 0) {
         this.showAlert("Notice", "Please select items to convert");
         return;
@@ -27,14 +36,15 @@ Zotero.ItemTypeConverter = {
       var totalSelected = items.length;
 
       for (let item of items) {
-        // 跳过非常规条目（如附件、笔记等）
-        if (!item.isRegularItem()) {
+        // 跳过非常规条目（附件、笔记、批注等）
+        // Zotero 10 起 setType() 在常规条目与附件/笔记之间转换会抛错
+        if (typeof item.isRegularItem === 'function' && !item.isRegularItem()) {
           skippedCount++;
           continue;
         }
 
         // 如果已经是目标类型，跳过
-        if (item.itemTypeID === targetTypeId) {
+        if (this.getItemTypeName(item) === targetType) {
           alreadyTargetType++;
           continue;
         }
@@ -60,12 +70,12 @@ Zotero.ItemTypeConverter = {
         };
 
         // 保存原始的 publisher 相关字段（用于智能映射）
-        var sourcePublisher = backup.publisher || 
-                            backup.publicationTitle || 
-                            backup.university || 
-                            backup.institution || 
-                            backup.assignee || 
-                            backup.proceedingsTitle || 
+        var sourcePublisher = backup.publisher ||
+                            backup.publicationTitle ||
+                            backup.university ||
+                            backup.institution ||
+                            backup.assignee ||
+                            backup.proceedingsTitle ||
                             '';
 
         /* =========================
@@ -136,38 +146,91 @@ Zotero.ItemTypeConverter = {
       // 显示详细的完成提示
       var targetTypeName = Zotero.ItemTypes.getLocalizedString(targetTypeId);
       var messages = [];
-      
+
       messages.push("Selected: " + totalSelected + " item(s)");
-      
+
       if (convertedCount > 0) {
         messages.push("✓ Converted: " + convertedCount + " item(s)");
       }
-      
+
       if (alreadyTargetType > 0) {
         messages.push("○ Already " + targetTypeName + ": " + alreadyTargetType + " (skipped)");
       }
-      
+
       if (skippedCount > 0) {
         messages.push("⊗ Non-regular items: " + skippedCount + " (skipped)");
       }
-      
+
       if (convertedCount > 0) {
         this.showAlert("Conversion Complete", messages.join("\n"));
-      } else {
+      }
+      else {
         this.showAlert("Notice", "No items converted\n\n" + messages.join("\n"));
       }
 
-    } catch (e) {
+    }
+    catch (e) {
       Zotero.debug("ItemTypeConverter error: " + e);
       this.showAlert("Error", "Conversion failed: " + e.message);
     }
+  },
+
+  // 获取当前 Zotero 主窗格（兼容不同版本的取法）
+  getZoteroPane() {
+    try {
+      if (typeof Zotero.getActiveZoteroPane === 'function') {
+        var pane = Zotero.getActiveZoteroPane();
+        if (pane) {
+          return pane;
+        }
+      }
+    }
+    catch (e) {
+      // 忽略，尝试下一种方式
+    }
+
+    try {
+      var win = typeof Zotero.getMainWindow === 'function' ? Zotero.getMainWindow() : null;
+      if (win && win.ZoteroPane) {
+        return win.ZoteroPane;
+      }
+    }
+    catch (e) {
+      // 忽略
+    }
+
+    return null;
+  },
+
+  // 获取条目类型名称（字符串）
+  getItemTypeName(item) {
+    try {
+      if (typeof item.itemType === 'string' && item.itemType) {
+        return item.itemType;
+      }
+    }
+    catch (e) {
+      // 忽略
+    }
+
+    try {
+      if (item.itemTypeID) {
+        return Zotero.ItemTypes.getName(item.itemTypeID);
+      }
+    }
+    catch (e) {
+      // 忽略
+    }
+
+    return '';
   },
 
   // 安全获取字段值
   getField(item, field) {
     try {
       return item.getField(field) || '';
-    } catch (e) {
+    }
+    catch (e) {
       return '';
     }
   },
@@ -178,15 +241,32 @@ Zotero.ItemTypeConverter = {
       if (value !== null && value !== undefined && value !== '') {
         item.setField(field, value);
       }
-    } catch (e) {
+    }
+    catch (e) {
       Zotero.debug("Failed to set field " + field + ": " + e);
     }
   },
 
-  // 显示提示框
+  // 显示提示框（nsIPromptService 已废弃，改用 Services.prompt）
   showAlert(title, message) {
-    var ps = Components.classes["@mozilla.org/embedcomp/prompt-service;1"]
-                       .getService(Components.interfaces.nsIPromptService);
-    ps.alert(null, title, message);
+    try {
+      if (typeof Services !== 'undefined' && Services.prompt) {
+        Services.prompt.alert(null, title, message);
+        return;
+      }
+    }
+    catch (e) {
+      // 继续尝试窗口 alert
+    }
+
+    try {
+      var win = typeof Zotero.getMainWindow === 'function' ? Zotero.getMainWindow() : null;
+      if (win) {
+        win.alert(title + "\n\n" + message);
+      }
+    }
+    catch (e) {
+      Zotero.debug("ItemTypeConverter: showAlert failed: " + e);
+    }
   }
 };
